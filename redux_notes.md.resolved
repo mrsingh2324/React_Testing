@@ -1,0 +1,429 @@
+# Complete Notes: Redux & Redux Toolkit
+
+> **Who is this for?** You know React and useState. You've never used Redux. These notes start from scratch.
+
+---
+
+## Part 1 — The Problem
+
+### Why Does Redux Exist?
+
+React components share data through **props**. This works well for small apps. The problem is **prop drilling**:
+
+```
+App (owns cartItems state)
+ ├── Navbar           ← needs cartItems.length
+ ├── Sidebar          ← doesn't care, but must pass it down
+ │   └── FilterMenu   ← doesn't care, but must pass it down
+ │       └── CategoryBadge ← needs cartItems.length
+ └── ProductList
+     └── ProductCard  ← needs to ADD to cartItems
+```
+
+[App](file:///Users/satyamsingh/Desktop/Files/ReactTesting/redux-project/src/App.js#17-50) has to pass `cartItems` through `Sidebar` and `FilterMenu` even though they don't use it — just so `CategoryBadge` can get it. This is prop drilling. It's painful.
+
+### The Redux Solution
+
+Redux creates a **single global store** (one big object) that holds ALL your shared state. Any component can read from it or update it — without passing props.
+
+```
+Redux Store: { cart: { items: [...] }, auth: { isLoggedIn: true } }
+
+Navbar         → reads cart count directly
+ProductCard    → updates cart directly
+CartDrawer     → reads cart items directly
+No prop passing needed.
+```
+
+---
+
+## Part 2 — Core Concepts (The 6 Things to Know)
+
+### 1. Store
+
+The store is a single JavaScript object that holds all your app's state.
+
+```js
+// The whole state looks like this at runtime:
+{
+  cart: {
+    items: [{ id: 1, name: 'Keyboard', price: 129.99, quantity: 2 }],
+    totalQuantity: 2,
+    totalPrice: 259.98
+  },
+  auth: {
+    isLoggedIn: true,
+    username: 'Alice'
+  }
+}
+```
+
+You create it once with `configureStore`:
+```js
+import { configureStore } from '@reduxjs/toolkit';
+
+const store = configureStore({
+  reducer: {
+    cart: cartReducer,  // state.cart
+    auth: authReducer,  // state.auth
+  },
+});
+```
+
+---
+
+### 2. Slice
+
+A **slice** is a self-contained piece of your Redux state. It bundles together:
+- The **initial state** for that piece
+- The **reducers** (functions that change that piece of state)
+- The **actions** (auto-generated from reducers)
+
+```js
+import { createSlice } from '@reduxjs/toolkit';
+
+const cartSlice = createSlice({
+  name: 'cart',
+
+  initialState: {
+    items: [],
+    totalQuantity: 0,
+  },
+
+  reducers: {
+    addItem(state, action) {
+      state.items.push(action.payload); // ✅ looks like mutation but it's safe (Immer)
+      state.totalQuantity++;
+    },
+    clearCart(state) {
+      state.items = [];
+      state.totalQuantity = 0;
+    },
+  },
+});
+
+export const { addItem, clearCart } = cartSlice.actions; // auto-generated
+export default cartSlice.reducer;
+```
+
+---
+
+### 3. Action
+
+An action is a plain object that says **"what happened"**:
+```js
+{ type: 'cart/addItem', payload: { id: 1, name: 'Keyboard', price: 129 } }
+```
+
+- `type` — a string identifying the event (slice name + reducer name)
+- `payload` — the data you're sending with the action
+
+You don't write these objects manually. Redux Toolkit generates **action creators** automatically:
+```js
+addItem({ id: 1, name: 'Keyboard', price: 129 })
+// Returns: { type: 'cart/addItem', payload: { id: 1, name: 'Keyboard', price: 129 } }
+
+clearCart()
+// Returns: { type: 'cart/clearCart' }
+```
+
+---
+
+### 4. Reducer
+
+A reducer is a function that takes [(currentState, action)](file:///Users/satyamsingh/Desktop/Files/ReactTesting/redux-project/src/App.js#17-50) and returns **new state**:
+
+```js
+addItem(state, action) {
+  const newItem = action.payload;
+  const existingItem = state.items.find(item => item.id === newItem.id);
+
+  if (!existingItem) {
+    state.items.push({ ...newItem, quantity: 1 });
+  } else {
+    existingItem.quantity++;
+  }
+  state.totalQuantity++;
+  state.totalPrice += newItem.price;
+}
+```
+
+> **Immer Magic:** Normally in Redux you must NEVER mutate state. But Redux Toolkit uses Immer internally — it lets you write "mutating" code (`state.items.push(...)`) and converts it into correct immutable updates behind the scenes. This is only possible inside `createSlice` reducers.
+
+---
+
+### 5. `useDispatch()` — Update State
+
+`dispatch()` sends an action to the store. The relevant reducer runs, state updates, components re-render.
+
+```js
+import { useDispatch } from 'react-redux';
+import { addItem, removeItem } from '../store/cartSlice';
+
+function ProductCard({ product }) {
+  const dispatch = useDispatch();
+
+  return (
+    <button onClick={() => dispatch(addItem(product))}>
+      Add to Cart
+    </button>
+  );
+}
+```
+
+**The flow:**
+```
+dispatch(addItem(product))
+  → action { type: 'cart/addItem', payload: product } sent to store
+  → cartSlice reducer runs addItem()
+  → state.cart updates
+  → all components using that state re-render
+```
+
+---
+
+### 6. `useSelector()` — Read State
+
+`useSelector` subscribes your component to a piece of store state. It re-renders the component automatically when that state changes.
+
+```js
+import { useSelector } from 'react-redux';
+
+function CartBadge() {
+  // Selector function: (state) => the piece you want
+  const count = useSelector((state) => state.cart.totalQuantity);
+
+  return <span className="badge">{count}</span>;
+}
+```
+
+You can call `useSelector` multiple times in one component:
+```js
+const items = useSelector((state) => state.cart.items);
+const total = useSelector((state) => state.cart.totalPrice);
+const isLoggedIn = useSelector((state) => state.auth.isLoggedIn);
+```
+
+---
+
+## Part 3 — Connecting Redux to React
+
+### `<Provider>` — The Bridge
+
+Wrap your entire app in `<Provider store={store}>` **once** in [App.js](file:///Users/satyamsingh/Desktop/Files/ReactTesting/redux-project/src/App.js). This makes the store available to every component in the tree without prop passing.
+
+```jsx
+import { Provider } from 'react-redux';
+import store from './store/store';
+
+function App() {
+  return (
+    <Provider store={store}>
+      <Navbar />
+      <ProductList />
+      <CartDrawer />
+    </Provider>
+  );
+}
+```
+
+After this, any component anywhere in your tree can:
+```js
+const count = useSelector((state) => state.cart.totalQuantity);
+const dispatch = useDispatch();
+```
+
+---
+
+## Part 4 — Multiple Slices
+
+Your store can have many slices. Each manages its own piece of state independently.
+
+```js
+// store.js
+const store = configureStore({
+  reducer: {
+    cart: cartReducer,    // state.cart
+    auth: authReducer,    // state.auth
+    theme: themeReducer,  // state.theme
+    products: productsReducer, // state.products
+  },
+});
+```
+
+Each component picks only the slice(s) it cares about:
+```js
+// Navbar cares about both
+const username = useSelector((state) => state.auth.username);
+const cartCount = useSelector((state) => state.cart.totalQuantity);
+
+// ProductCard only cares about cart
+const cartItems = useSelector((state) => state.cart.items);
+```
+
+---
+
+## Part 5 — When to Use Redux vs useState?
+
+This is one of the most common questions. Here's the rule:
+
+| State type | Where it lives |
+|-----------|---------------|
+| Shared by multiple components | ✅ Redux |
+| Only one component needs it | ✅ React `useState` |
+| Server data (API responses) | ✅ React Query / RTK Query |
+| UI-only (is modal open?) | ✅ React `useState` |
+| User data, cart, auth | ✅ Redux |
+
+**Example:**
+```js
+// ❌ Don't put this in Redux — only CartDrawer cares:
+const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+// ✅ Put this in Redux — Navbar + CartDrawer + ProductCard all care:
+const cartItems = useSelector((state) => state.cart.items);
+```
+
+---
+
+## Part 6 — Selectors (Good Practice)
+
+Instead of writing [(state) => state.cart.items](file:///Users/satyamsingh/Desktop/Files/ReactTesting/redux-project/src/App.js#17-50) everywhere, extract selector functions:
+
+```js
+// store/cartSlice.js
+// Define selectors alongside your slice
+export const selectCartItems = (state) => state.cart.items;
+export const selectTotalQuantity = (state) => state.cart.totalQuantity;
+export const selectTotalPrice = (state) => state.cart.totalPrice;
+
+// In any component:
+import { selectCartItems, selectTotalPrice } from '../store/cartSlice';
+
+const items = useSelector(selectCartItems);
+const total = useSelector(selectTotalPrice);
+```
+
+This avoids repeating `state.cart.x` everywhere and makes refactoring easier.
+
+---
+
+## Part 7 — Async Actions (createAsyncThunk)
+
+For API calls, Redux Toolkit provides `createAsyncThunk`:
+
+```js
+import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+
+// 1. Define the async thunk
+export const fetchProducts = createAsyncThunk(
+  'products/fetch',      // action type prefix
+  async () => {
+    const res = await fetch('https://api.example.com/products');
+    return res.json();   // this becomes action.payload
+  }
+);
+
+// 2. Handle in slice
+const productsSlice = createSlice({
+  name: 'products',
+  initialState: { items: [], loading: false, error: null },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchProducts.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.items = action.payload;
+      })
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      });
+  },
+});
+
+// 3. Dispatch it like any action
+dispatch(fetchProducts());
+```
+
+The thunk has three automatic states: `pending`, `fulfilled`, `rejected`.
+
+---
+
+## Part 8 — The Complete Data Flow
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    React Component                   │
+│                                                      │
+│  1. User clicks button                               │
+│  2. dispatch(addItem(product))  ←── useDispatch()    │
+└─────────────────┬────────────────────────────────────┘
+                  │ action sent
+                  ▼
+┌─────────────────────────────────────────────────────┐
+│                    Redux Store                       │
+│                                                      │
+│  3. cartSlice.addItem reducer runs                   │
+│  4. state.cart updated immutably (via Immer)         │
+└─────────────────┬────────────────────────────────────┘
+                  │ state changed
+                  ▼
+┌─────────────────────────────────────────────────────┐
+│              All subscribed components               │
+│                                                      │
+│  5. useSelector() detects change                     │
+│  6. Components re-render with new state              │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Cheat Sheet
+
+```js
+// Install
+npm install @reduxjs/toolkit react-redux
+
+// ─── SLICE ───────────────────────────────────────────
+const mySlice = createSlice({
+  name: 'mySlice',
+  initialState: { count: 0 },
+  reducers: {
+    increment(state) { state.count++; },
+    setValue(state, action) { state.count = action.payload; },
+  },
+});
+export const { increment, setValue } = mySlice.actions;
+export default mySlice.reducer;
+
+// ─── STORE ───────────────────────────────────────────
+const store = configureStore({
+  reducer: { mySlice: mySlice.reducer },
+});
+
+// ─── PROVIDER ────────────────────────────────────────
+<Provider store={store}><App /></Provider>
+
+// ─── READ STATE ──────────────────────────────────────
+const count = useSelector((state) => state.mySlice.count);
+
+// ─── UPDATE STATE ────────────────────────────────────
+const dispatch = useDispatch();
+dispatch(increment());
+dispatch(setValue(42));
+
+// ─── ASYNC ───────────────────────────────────────────
+const fetchData = createAsyncThunk('data/fetch', async () => {
+  const res = await fetch('/api/data');
+  return res.json();
+});
+dispatch(fetchData()); // dispatches pending → fulfilled/rejected
+```
+
+---
+
+> **Summary:** Redux = one store + slices (state + reducers) + actions + useSelector + useDispatch. Redux Toolkit makes all of this easy with `createSlice` and `configureStore`.
