@@ -1,0 +1,489 @@
+# Complete Notes: Jest & Enzyme for React Testing
+
+> **Who is this for?** You know React. You've never tested before. These notes start from zero.
+
+---
+
+## Part 1 — What is Testing? (Start Here)
+
+### The Big Idea
+
+When you write React code, you manually open the browser and click around to see if something works. That's **manual testing**. The problem is:
+
+- It's **slow** — you repeat the same clicks every time you change code
+- It's **error-prone** — humans forget edge cases
+- It doesn't **scale** — as your app grows, you can't test everything manually
+
+**Automated testing** means writing code that tests your code. You run `npm test`, and in seconds, hundreds of checks run automatically.
+
+### Analogy
+
+Think of tests as a **safety net** for a trapeze artist. You don't plan to fall, but when you make a mistake (and you will), the net catches you instead of you crashing.
+
+---
+
+### Types of Tests
+
+```
+Unit Tests         → Test one component in isolation
+Integration Tests  → Test how components work together  
+End-to-End Tests   → Test the full app from browser to backend
+```
+
+In React, you'll mostly write **unit tests** and some **integration tests**.
+
+---
+
+### Anatomy of a Test
+
+Every test you write has three steps — called "**Arrange, Act, Assert**" (AAA):
+
+```js
+it('shows error when form submitted empty', () => {
+  // 1. ARRANGE — Set up the component
+  render(<LoginForm />);
+
+  // 2. ACT — Do something (simulate the user action)
+  fireEvent.click(screen.getByTestId('submit-btn'));
+
+  // 3. ASSERT — Check the result
+  expect(screen.getByTestId('error-message')).toBeInTheDocument();
+});
+```
+
+---
+
+## Part 2 — Jest
+
+### What is Jest?
+
+Jest is a **test runner** — a tool that:
+1. Finds your test files (those ending in [.test.js](file:///Users/satyamsingh/Desktop/Files/ReactTesting/jest-testing-project/src/__tests__/Counter.test.js))
+2. Executes them
+3. Tells you which pass ✅ and which fail ❌
+4. Shows you a detailed error message for failures
+
+It's made by Meta (Facebook) and comes **pre-installed in Create React App** — no setup needed.
+
+---
+
+### Key Jest Syntax
+
+#### `describe()` — Grouping Tests
+```js
+describe('Counter Component', () => {
+  // All tests about Counter go here
+  it('...', () => { ... });
+  it('...', () => { ... });
+});
+```
+`describe` is like a folder. It groups related tests. You can nest describes inside each other too.
+
+---
+
+#### [it()](file:///Users/satyamsingh/Desktop/Files/ReactTesting/jest-testing-project/src/components/LoginForm.js#9-22) / `test()` — A Single Test Case
+```js
+it('renders the title', () => {
+  // one specific assertion lives here
+});
+
+// 'it' and 'test' are identical, just different wording preference
+test('renders the title', () => { ... });
+```
+
+Give your test a clear, plain-English name that completes the sentence:
+> *"It renders the title"* or *"It shows error when form is empty"*
+
+---
+
+#### `expect()` + Matchers — Assertions
+```js
+expect(value).matcher()
+```
+`expect()` is always followed by a **matcher** that checks a specific condition.
+
+**Common matchers:**
+
+```js
+// DOM element matchers (from @testing-library/jest-dom)
+expect(element).toBeInTheDocument()         // Is it on the page?
+expect(element).toHaveTextContent('Hello')  // Does it say 'Hello'?
+expect(element).toHaveAttribute('src', 'x') // Does it have this attribute?
+expect(element).toHaveClass('active')       // Does it have this CSS class?
+expect(element).not.toBeInTheDocument()     // Does it NOT exist?
+
+// Value matchers (built into Jest)
+expect(value).toBe(42)                // Strict equality (===)
+expect(value).toEqual({ a: 1 })       // Deep equality (for objects/arrays)
+expect(value).toBeTruthy()            // Truthy (not null/undefined/false/0)
+expect(value).toBeFalsy()             // Falsy
+expect(arr).toContain('item')         // Array contains an item
+expect(str).toContain('substr')       // String contains a substring
+expect(fn).toThrow()                  // Function throws an error
+
+// Function/mock matchers
+expect(fn).toHaveBeenCalled()
+expect(fn).toHaveBeenCalledTimes(2)
+expect(fn).toHaveBeenCalledWith(arg1, arg2)
+expect(fn).not.toHaveBeenCalled()
+```
+
+---
+
+#### `jest.fn()` — Mock Functions
+
+A **mock function** is a fake function. It doesn't do anything real — it just records how it was called.
+
+Use case: You have a [LoginForm](file:///Users/satyamsingh/Desktop/Files/ReactTesting/jest-testing-project/src/components/LoginForm.js#3-49) with an `onLogin` prop (a callback). In a test, you don't have a real login system. You create a fake function and check if it was called correctly.
+
+```js
+const mockOnLogin = jest.fn();
+
+render(<LoginForm onLogin={mockOnLogin} />);
+
+// ... user fills in the form and submits ...
+
+expect(mockOnLogin).toHaveBeenCalledTimes(1);
+expect(mockOnLogin).toHaveBeenCalledWith({
+  email: 'user@example.com',
+  password: 'secret'
+});
+```
+
+You can also make mocks return values:
+```js
+const mockFetch = jest.fn().mockResolvedValue({ ok: true, json: async () => data });
+```
+
+---
+
+#### Snapshot Testing
+
+A **snapshot** is a saved copy of a component's rendered output. The first time you run the test, Jest saves the snapshot. On every future run, it compares the new output to the saved one.
+
+```js
+expect(wrapper).toMatchSnapshot();
+```
+
+- First run → Creates `__snapshots__/Button.test.js.snap`
+- Future runs → Compares against that file
+- If the output changed unintentionally → Test fails ❌
+- If the change was intentional → Run `npm test -- --updateSnapshot` to update
+
+---
+
+#### `beforeEach` / `afterEach` — Setup and Cleanup
+
+```js
+describe('My Tests', () => {
+  beforeEach(() => {
+    // Runs before EACH test in this describe block
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    // Runs after EACH test — great for cleanup
+    jest.clearAllMocks();
+  });
+});
+```
+
+| Hook | When it runs |
+|------|-------------|
+| `beforeAll` | Once before all tests in the block |
+| `beforeEach` | Before every single test |
+| `afterEach` | After every single test |
+| `afterAll` | Once after all tests in the block |
+
+---
+
+### React Testing Library (used with Jest)
+
+RTL provides the tools to render and interact with components during Jest tests.
+
+```js
+import { render, screen, fireEvent } from '@testing-library/react';
+```
+
+#### `render()`
+Puts the component into a virtual DOM.
+```js
+render(<Counter />);
+```
+
+#### `screen` — Querying the DOM
+
+```js
+// "get" methods — throw an error if element is not found
+screen.getByTestId('btn')         // by data-testid attribute
+screen.getByText('Submit')        // by visible text content
+screen.getByRole('button')        // by ARIA role
+screen.getByLabelText('Email')    // by form label
+
+// "query" methods — return null if not found (no error)
+screen.queryByTestId('error')     // good for "not exist" checks
+
+// "find" methods — async, wait for element to appear
+await screen.findByText('Loaded!')
+```
+
+#### `fireEvent` — Simulating User Actions
+
+```js
+fireEvent.click(button)
+fireEvent.change(input, { target: { value: 'hello' } })
+fireEvent.submit(form)
+fireEvent.keyDown(element, { key: 'Enter' })
+```
+
+#### `rerender()` — Update Props
+```js
+const { rerender } = render(<UserCard name="Alice" />);
+rerender(<UserCard name="Bob" />); // Test with new props
+```
+
+---
+
+## Part 3 — Enzyme
+
+### What is Enzyme?
+
+Enzyme is a React testing utility from **Airbnb**. It gives you a jQuery-like API to inspect and interact with your React components.
+
+Unlike RTL (which tests from the user's perspective), Enzyme lets you:
+- Inspect **internal state** of components
+- Check **component props** in detail
+- Find elements by **CSS class** or component type
+- Use **shallow rendering** to test components in true isolation
+
+---
+
+### Setting Up Enzyme
+
+Enzyme needs an **adapter** to work with your version of React.
+
+```js
+// src/setupTests.js
+import Enzyme from 'enzyme';
+import Adapter from '@wojtekmaj/enzyme-adapter-react-17';
+
+Enzyme.configure({ adapter: new Adapter() });
+```
+
+This file runs automatically before every test (CRA configures this via `package.json`).
+
+---
+
+### The Three Rendering Methods
+
+#### `shallow()` ← Use This 90% of the Time
+
+Renders the component one level deep. Child components appear as their tags but are NOT expanded.
+
+```js
+import { shallow } from 'enzyme';
+const wrapper = shallow(<MyComponent prop="x" />);
+```
+
+**Why shallow?**
+- Fast
+- Isolated — other components can't affect your test
+- Great for unit tests
+
+---
+
+#### `mount()` ← Use When You Need Lifecycle Hooks
+
+Full rendering, including child components and the real DOM. Required when:
+- Testing `useEffect()` (fetch calls, subscriptions, etc.)
+- Testing how parent and child components interact
+
+```js
+import { mount } from 'enzyme';
+const wrapper = mount(<MyComponent />);
+```
+
+**Cleanup after mount():**
+```js
+afterEach(() => {
+  wrapper.unmount();
+});
+```
+
+---
+
+### Enzyme's Key API
+
+#### `.find()` — Select Elements
+```js
+wrapper.find('[data-testid="btn"]')  // By data-testid
+wrapper.find('button')               // By tag name
+wrapper.find('.btn-primary')         // By CSS class
+wrapper.find(Button)                 // By component type (imported component)
+wrapper.find('input[type="text"]')   // By tag + attribute
+```
+
+#### `.simulate()` — Trigger Events
+```js
+wrapper.find('button').simulate('click');
+wrapper.find('input').simulate('change', { target: { value: 'text' } });
+wrapper.find('form').simulate('submit', { preventDefault: jest.fn() });
+```
+
+#### Reading Content and Props
+```js
+wrapper.find('h2').text()               // Text content
+wrapper.find('button').prop('onClick')  // A specific prop
+wrapper.find('button').props()          // All props as an object
+wrapper.find('img').prop('src')         // Attribute value
+```
+
+#### Checking Structure
+```js
+wrapper.exists()                             // Does root element exist?
+wrapper.find('div').length                   // How many divs?
+wrapper.find('div').hasClass('active')       // Has CSS class?
+wrapper.contains(<p>Hello</p>)              // Is this element in the tree?
+```
+
+#### Updating State (after async operations)
+```js
+await somePromise;
+wrapper.update(); // Force Enzyme to sync with the latest React state
+```
+
+---
+
+### Enzyme vs RTL — When to Use Which?
+
+| Scenario | Enzyme | RTL |
+|----------|--------|-----|
+| Testing that a button is rendered | `.find('button').length` | `screen.getByRole('button')` |
+| Testing button text | `.find('button').text()` | `screen.getByText('Submit')` |
+| Simulating a click | `.simulate('click')` | `fireEvent.click(button)` |
+| Testing internal state | ✅ Yes (`.state()`) | ❌ Not directly |
+| Testing CSS classes | ✅ `.hasClass()` | Not recommended |
+| Snapshot testing | ✅ Yes | 🔶 Possible but less common |
+| Testing async lifecycle | `mount()` | `render()` + `findBy*` |
+
+---
+
+## Part 4 — Mocking APIs
+
+### Why Mock?
+
+When testing components that call `fetch()` or Axios:
+- You don't want tests to depend on the internet
+- Real APIs can be slow or fail
+- You want to test specific responses (success, error, empty data)
+
+### Mocking `fetch`
+
+```js
+beforeEach(() => {
+  global.fetch = jest.fn();
+});
+
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+// Simulate a successful response
+global.fetch.mockResolvedValue({
+  ok: true,
+  json: async () => ({ name: 'Alice', email: 'alice@test.com' }),
+});
+
+// Simulate an error response (404, 500, etc.)
+global.fetch.mockResolvedValue({
+  ok: false,
+  json: async () => ({}),
+});
+
+// Simulate a network error (no internet)
+global.fetch.mockRejectedValue(new Error('Network Error'));
+```
+
+### Waiting for Async Operations
+
+After triggering an async operation (fetch, setTimeout), you must wait for it:
+
+```js
+// Method 1: Flush all pending promises
+await new Promise((resolve) => setTimeout(resolve, 0));
+
+// Method 2: Wait for a specific element to appear (RTL)
+await screen.findByTestId('user-name');
+```
+
+---
+
+## Part 5 — Quick Cheat Sheet
+
+### Jest + RTL Cheat Sheet
+
+```js
+// Setup
+render(<Component prop="x" />)
+
+// Find elements
+screen.getByTestId('id')
+screen.getByText('Hello')
+screen.queryByTestId('id')        // null if not found
+
+// Events
+fireEvent.click(el)
+fireEvent.change(el, { target: { value: 'text' } })
+
+// Assertions
+expect(el).toBeInTheDocument()
+expect(el).toHaveTextContent('Hi')
+expect(el).toHaveAttribute('src', 'url')
+expect(fn).toHaveBeenCalledTimes(1)
+expect(fn).toHaveBeenCalledWith({ key: 'value' })
+expect(fn).not.toHaveBeenCalled()
+```
+
+### Enzyme Cheat Sheet
+
+```js
+// Render
+shallow(<Component prop="x" />)
+mount(<Component prop="x" />)
+
+// Find
+wrapper.find('[data-testid="x"]')
+wrapper.find('button')
+wrapper.find('.class-name')
+
+// Interact
+wrapper.find('button').simulate('click')
+wrapper.find('input').simulate('change', { target: { value: 'x' } })
+
+// Read
+wrapper.find('h2').text()
+wrapper.find('button').prop('disabled')
+wrapper.find('button').hasClass('active')
+wrapper.find('el').length              // 0 = not found, 1+ = found
+
+// State
+wrapper.update()                       // Sync after async ops
+expect(wrapper).toMatchSnapshot()      // Snapshot
+```
+
+---
+
+## Part 6 — Common Beginner Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Querying before render | Always call `render()` first |
+| Forgetting `await` on async tests | Add `async/await` to the test function |
+| Testing implementation details | Focus on what the user sees, not how it works internally |
+| Not cleaning up mocks | Use `jest.clearAllMocks()` in `afterEach` |
+| Using `mount()` when `shallow()` is enough | Default to `shallow()` — it's faster |
+| Snapshot tests that always fail | Run `--updateSnapshot` after intentional UI changes |
+
+---
+
+> **Summary**: Jest is the test runner + assertion library. RTL is the DOM query tool. Enzyme is an alternative querying approach with more fine-grained control. All three work together using the same `expect()` API.
