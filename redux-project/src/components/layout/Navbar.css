@@ -1,0 +1,83 @@
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-brand span { font-size: 1.6rem; }
+
+.nav-brand h1 {
+  margin: 0;
+  font-size: 1.3rem;
+  color: #cdd6f4;
+  font-weight: 800;
+  background: linear-gradient(135deg, #cba6f7, #89b4fa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-user {
+  font-size: 0.9rem;
+  color: #a6adc8;
+  font-weight: 500;
+}
+
+.auth-btn {
+  background: #313244;
+  border: none;
+  border-radius: 8px;
+  color: #cdd6f4;
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.auth-btn:hover { background: #45475a; }
+
+.cart-btn {
+  position: relative;
+  background: linear-gradient(135deg, #cba6f7, #89b4fa);
+  border: none;
+  border-radius: 10px;
+  color: #1e1e2e;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.cart-btn:hover { opacity: 0.85; }
+
+.cart-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #f38ba8;
+  color: #1e1e2e;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
